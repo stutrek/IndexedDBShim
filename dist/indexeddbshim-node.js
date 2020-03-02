@@ -3,6 +3,7 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var path = _interopDefault(require('path'));
+var fs = _interopDefault(require('fs'));
 var customOpenDatabase = _interopDefault(require('websql/custom/index.js'));
 
 function _typeof(obj) {
@@ -890,7 +891,9 @@ const CFG = {};
 }], // NODE-SPECIFIC CONFIG
 // Boolean on whether to delete the database file itself after
 //   `deleteDatabase`; defaults to `true` as the database will be empty
-'deleteDatabaseFiles', 'databaseBasePath', 'sysDatabaseBasePath', // NODE-SPECIFIC WEBSQL CONFIG
+'deleteDatabaseFiles', 'databaseBasePath', 'sysDatabaseBasePath', 'pathJoin', // should be path.join
+'fs', // should be the fs module
+// NODE-SPECIFIC WEBSQL CONFIG
 'sqlBusyTimeout', // Defaults to 1000
 'sqlTrace', // Callback not used by default
 'sqlProfile' // Callback not used by default
@@ -9366,8 +9369,6 @@ Object.defineProperty(IDBDatabase, 'prototype', {
 
 /* globals location */
 
-const fs = {}.toString.call(process) === '[object process]' ? require('fs') : null;
-
 const getOrigin = () => {
   return typeof location !== 'object' || !location ? 'null' : location.origin;
 };
@@ -9533,8 +9534,8 @@ function cleanupDatabaseResources(__openDatabase, name, escapedDatabaseName, dat
     return;
   }
 
-  if (fs && CFG.deleteDatabaseFiles !== false) {
-    fs.unlink(path.join(CFG.databaseBasePath || '', escapedDatabaseName), err => {
+  if (CFG.fs && CFG.deleteDatabaseFiles !== false) {
+    CFG.fs.unlink(CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), err => {
       if (err && err.code !== 'ENOENT') {
         // Ignore if file is already deleted
         dbError({
@@ -9549,7 +9550,7 @@ function cleanupDatabaseResources(__openDatabase, name, escapedDatabaseName, dat
     return;
   }
 
-  const sqliteDB = __openDatabase(path.join(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
+  const sqliteDB = __openDatabase(CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
 
   sqliteDB.transaction(function (tx) {
     tx.executeSql('SELECT "name" FROM __sys__', [], function (tx, data) {
@@ -9578,9 +9579,9 @@ function cleanupDatabaseResources(__openDatabase, name, escapedDatabaseName, dat
   });
 }
 /**
-* @callback CreateSysDBSuccessCallback
-* @returns {void}
-*/
+ * @callback CreateSysDBSuccessCallback
+ * @returns {void}
+ */
 
 /**
  * Creates the sysDB to keep track of version numbers for databases.
@@ -9601,7 +9602,7 @@ function createSysDB(__openDatabase, success, failure) {
   if (sysdb) {
     success();
   } else {
-    sysdb = __openDatabase(typeof CFG.memoryDatabase === 'string' ? CFG.memoryDatabase : path.join(typeof CFG.sysDatabaseBasePath === 'string' ? CFG.sysDatabaseBasePath : CFG.databaseBasePath || '', '__sysdb__' + (CFG.addSQLiteExtension !== false ? '.sqlite' : '')), 1, 'System Database', CFG.DEFAULT_DB_SIZE);
+    sysdb = __openDatabase(typeof CFG.memoryDatabase === 'string' ? CFG.memoryDatabase : CFG.pathJoin(typeof CFG.sysDatabaseBasePath === 'string' ? CFG.sysDatabaseBasePath : CFG.databaseBasePath || '', '__sysdb__' + (CFG.addSQLiteExtension !== false ? '.sqlite' : '')), 1, 'System Database', CFG.DEFAULT_DB_SIZE);
     sysdb.transaction(function (systx) {
       systx.executeSql('CREATE TABLE IF NOT EXISTS dbVersions (name BLOB, version INT);', [], function (systx) {
         if (!CFG.useSQLiteIndexes) {
@@ -9895,7 +9896,7 @@ IDBFactory.prototype.open = function (name
     if ((useMemoryDatabase || useDatabaseCache) && name in websqlDBCache && websqlDBCache[name][version]) {
       db = websqlDBCache[name][version];
     } else {
-      db = me.__openDatabase(useMemoryDatabase ? CFG.memoryDatabase : path.join(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
+      db = me.__openDatabase(useMemoryDatabase ? CFG.memoryDatabase : CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
 
       if (useDatabaseCache) {
         if (!(name in websqlDBCache)) {
@@ -10135,10 +10136,10 @@ IDBFactory.prototype.cmp = function (key1, key2) {
   return cmp(key1, key2);
 };
 /**
-* May return outdated information if a database has since been deleted.
-* @see https://github.com/w3c/IndexedDB/pull/240/files
-* @returns {Promise<string[]>}
-*/
+ * May return outdated information if a database has since been deleted.
+ * @see https://github.com/w3c/IndexedDB/pull/240/files
+ * @returns {Promise<string[]>}
+ */
 
 
 IDBFactory.prototype.databases = function () {
@@ -10187,16 +10188,16 @@ IDBFactory.prototype.databases = function () {
   });
 };
 /**
-* @todo forceClose: Test
-* This is provided to facilitate unit-testing of the
-*  closing of a database connection with a forced flag:
-* <http://w3c.github.io/IndexedDB/#steps-for-closing-a-database-connection>
-* @param {string} dbName
-* @param {Integer} connIdx
-* @param {string} msg
-* @throws {TypeError}
-* @returns {void}
-*/
+ * @todo forceClose: Test
+ * This is provided to facilitate unit-testing of the
+ *  closing of a database connection with a forced flag:
+ * <http://w3c.github.io/IndexedDB/#steps-for-closing-a-database-connection>
+ * @param {string} dbName
+ * @param {Integer} connIdx
+ * @param {string} msg
+ * @throws {TypeError}
+ * @returns {void}
+ */
 
 
 IDBFactory.prototype.__forceClose = function (dbName, connIdx, msg) {
@@ -11257,6 +11258,9 @@ SQLiteDatabase.prototype.exec = function exec(queries, readOnly, callback) {
 
 var SQLiteDatabase_1 = SQLiteDatabase;
 
+CFG.pathJoin = path.join;
+CFG.fs = fs;
+
 function wrappedSQLiteDatabase(name) {
   const db = new SQLiteDatabase_1(name);
 
@@ -11279,7 +11283,9 @@ function wrappedSQLiteDatabase(name) {
 const nodeWebSQL = customOpenDatabase(wrappedSQLiteDatabase);
 
 CFG.win = {
-  openDatabase: nodeWebSQL
+  openDatabase: nodeWebSQL,
+  pathJoin: path.join,
+  fs
 };
 
 module.exports = setGlobalVars;

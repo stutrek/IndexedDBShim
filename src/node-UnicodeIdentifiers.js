@@ -1,11 +1,13 @@
+import path from 'path';
+import fs from 'fs';
 import setGlobalVars from './setGlobalVars.js';
 import nodeWebSQL from './nodeWebSQL.js'; // Importing "websql" would not gain us SQLite config ability
 import CFG from './CFG.js';
 import * as UnicodeIdentifiers from './UnicodeIdentifiers.js';
 
-CFG.win = {openDatabase: nodeWebSQL};
+CFG.win = { openDatabase: nodeWebSQL, pathJoin: path.join, fs };
 
-const __setGlobalVars = function (idb, initialConfig) {
+const __setGlobalVars = function(idb, initialConfig) {
     const obj = setGlobalVars(idb, initialConfig);
     obj.shimIndexedDB.__setUnicodeIdentifiers(UnicodeIdentifiers);
     return obj;

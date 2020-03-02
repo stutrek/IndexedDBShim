@@ -1114,7 +1114,9 @@
   }], // NODE-SPECIFIC CONFIG
   // Boolean on whether to delete the database file itself after
   //   `deleteDatabase`; defaults to `true` as the database will be empty
-  'deleteDatabaseFiles', 'databaseBasePath', 'sysDatabaseBasePath', // NODE-SPECIFIC WEBSQL CONFIG
+  'deleteDatabaseFiles', 'databaseBasePath', 'sysDatabaseBasePath', 'pathJoin', // should be path.join
+  'fs', // should be the fs module
+  // NODE-SPECIFIC WEBSQL CONFIG
   'sqlBusyTimeout', // Defaults to 1000
   'sqlTrace', // Callback not used by default
   'sqlProfile' // Callback not used by default
@@ -9289,475 +9291,6 @@
     writable: false
   });
 
-  // based off https://github.com/defunctzombie/node-process/blob/master/browser.js
-
-  function defaultSetTimout() {
-    throw new Error('setTimeout has not been defined');
-  }
-
-  function defaultClearTimeout() {
-    throw new Error('clearTimeout has not been defined');
-  }
-
-  var cachedSetTimeout = defaultSetTimout;
-  var cachedClearTimeout = defaultClearTimeout;
-
-  if (typeof global$1.setTimeout === 'function') {
-    cachedSetTimeout = setTimeout;
-  }
-
-  if (typeof global$1.clearTimeout === 'function') {
-    cachedClearTimeout = clearTimeout;
-  }
-
-  function runTimeout(fun) {
-    if (cachedSetTimeout === setTimeout) {
-      //normal enviroments in sane situations
-      return setTimeout(fun, 0);
-    } // if setTimeout wasn't available but was latter defined
-
-
-    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-      cachedSetTimeout = setTimeout;
-      return setTimeout(fun, 0);
-    }
-
-    try {
-      // when when somebody has screwed with setTimeout but no I.E. maddness
-      return cachedSetTimeout(fun, 0);
-    } catch (e) {
-      try {
-        // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-        return cachedSetTimeout.call(null, fun, 0);
-      } catch (e) {
-        // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-        return cachedSetTimeout.call(this, fun, 0);
-      }
-    }
-  }
-
-  function runClearTimeout(marker) {
-    if (cachedClearTimeout === clearTimeout) {
-      //normal enviroments in sane situations
-      return clearTimeout(marker);
-    } // if clearTimeout wasn't available but was latter defined
-
-
-    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-      cachedClearTimeout = clearTimeout;
-      return clearTimeout(marker);
-    }
-
-    try {
-      // when when somebody has screwed with setTimeout but no I.E. maddness
-      return cachedClearTimeout(marker);
-    } catch (e) {
-      try {
-        // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-        return cachedClearTimeout.call(null, marker);
-      } catch (e) {
-        // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-        // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-        return cachedClearTimeout.call(this, marker);
-      }
-    }
-  }
-
-  var queue = [];
-  var draining = false;
-  var currentQueue;
-  var queueIndex = -1;
-
-  function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-      return;
-    }
-
-    draining = false;
-
-    if (currentQueue.length) {
-      queue = currentQueue.concat(queue);
-    } else {
-      queueIndex = -1;
-    }
-
-    if (queue.length) {
-      drainQueue();
-    }
-  }
-
-  function drainQueue() {
-    if (draining) {
-      return;
-    }
-
-    var timeout = runTimeout(cleanUpNextTick);
-    draining = true;
-    var len = queue.length;
-
-    while (len) {
-      currentQueue = queue;
-      queue = [];
-
-      while (++queueIndex < len) {
-        if (currentQueue) {
-          currentQueue[queueIndex].run();
-        }
-      }
-
-      queueIndex = -1;
-      len = queue.length;
-    }
-
-    currentQueue = null;
-    draining = false;
-    runClearTimeout(timeout);
-  }
-
-  function nextTick(fun) {
-    var args = new Array(arguments.length - 1);
-
-    if (arguments.length > 1) {
-      for (var i = 1; i < arguments.length; i++) {
-        args[i - 1] = arguments[i];
-      }
-    }
-
-    queue.push(new Item(fun, args));
-
-    if (queue.length === 1 && !draining) {
-      runTimeout(drainQueue);
-    }
-  } // v8 likes predictible objects
-
-  function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-  }
-
-  Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-  };
-
-  var title = 'browser';
-  var platform = 'browser';
-  var browser = true;
-  var env = {};
-  var argv = [];
-  var version = ''; // empty string to avoid regexp issues
-
-  var versions = {};
-  var release = {};
-  var config = {};
-
-  function noop() {}
-
-  var on = noop;
-  var addListener = noop;
-  var once = noop;
-  var off = noop;
-  var removeListener = noop;
-  var removeAllListeners = noop;
-  var emit = noop;
-  function binding(name) {
-    throw new Error('process.binding is not supported');
-  }
-  function cwd() {
-    return '/';
-  }
-  function chdir(dir) {
-    throw new Error('process.chdir is not supported');
-  }
-  function umask() {
-    return 0;
-  } // from https://github.com/kumavis/browser-process-hrtime/blob/master/index.js
-
-  var performance$1 = global$1.performance || {};
-
-  var performanceNow = performance$1.now || performance$1.mozNow || performance$1.msNow || performance$1.oNow || performance$1.webkitNow || function () {
-    return new Date().getTime();
-  }; // generate timestamp or delta
-  // see http://nodejs.org/api/process.html#process_process_hrtime
-
-
-  function hrtime(previousTimestamp) {
-    var clocktime = performanceNow.call(performance$1) * 1e-3;
-    var seconds = Math.floor(clocktime);
-    var nanoseconds = Math.floor(clocktime % 1 * 1e9);
-
-    if (previousTimestamp) {
-      seconds = seconds - previousTimestamp[0];
-      nanoseconds = nanoseconds - previousTimestamp[1];
-
-      if (nanoseconds < 0) {
-        seconds--;
-        nanoseconds += 1e9;
-      }
-    }
-
-    return [seconds, nanoseconds];
-  }
-  var startTime = new Date();
-  function uptime() {
-    var currentTime = new Date();
-    var dif = currentTime - startTime;
-    return dif / 1000;
-  }
-  var process = {
-    nextTick: nextTick,
-    title: title,
-    browser: browser,
-    env: env,
-    argv: argv,
-    version: version,
-    versions: versions,
-    on: on,
-    addListener: addListener,
-    once: once,
-    off: off,
-    removeListener: removeListener,
-    removeAllListeners: removeAllListeners,
-    emit: emit,
-    binding: binding,
-    cwd: cwd,
-    chdir: chdir,
-    umask: umask,
-    hrtime: hrtime,
-    platform: platform,
-    release: release,
-    config: config,
-    uptime: uptime
-  };
-
-  // Copyright Joyent, Inc. and other Node contributors.
-  //
-  // Permission is hereby granted, free of charge, to any person obtaining a
-  // copy of this software and associated documentation files (the
-  // "Software"), to deal in the Software without restriction, including
-  // without limitation the rights to use, copy, modify, merge, publish,
-  // distribute, sublicense, and/or sell copies of the Software, and to permit
-  // persons to whom the Software is furnished to do so, subject to the
-  // following conditions:
-  //
-  // The above copyright notice and this permission notice shall be included
-  // in all copies or substantial portions of the Software.
-  //
-  // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-  // OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-  // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-  // NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-  // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-  // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-  // USE OR OTHER DEALINGS IN THE SOFTWARE.
-  // resolves . and .. elements in a path array with directory names there
-  // must be no slashes, empty elements, or device names (c:\) in the array
-  // (so also no leading and trailing slashes - it does not distinguish
-  // relative and absolute paths)
-  function normalizeArray(parts, allowAboveRoot) {
-    // if the path tries to go above the root, `up` ends up > 0
-    var up = 0;
-
-    for (var i = parts.length - 1; i >= 0; i--) {
-      var last = parts[i];
-
-      if (last === '.') {
-        parts.splice(i, 1);
-      } else if (last === '..') {
-        parts.splice(i, 1);
-        up++;
-      } else if (up) {
-        parts.splice(i, 1);
-        up--;
-      }
-    } // if the path is allowed to go above the root, restore leading ..s
-
-
-    if (allowAboveRoot) {
-      for (; up--; up) {
-        parts.unshift('..');
-      }
-    }
-
-    return parts;
-  } // Split a filename into [root, dir, basename, ext], unix version
-  // 'root' is just a slash, or nothing.
-
-
-  var splitPathRe = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-
-  var splitPath = function splitPath(filename) {
-    return splitPathRe.exec(filename).slice(1);
-  }; // path.resolve([from ...], to)
-  // posix version
-
-
-  function resolve() {
-    var resolvedPath = '',
-        resolvedAbsolute = false;
-
-    for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-      var path = i >= 0 ? arguments[i] : '/'; // Skip empty and invalid entries
-
-      if (typeof path !== 'string') {
-        throw new TypeError('Arguments to path.resolve must be strings');
-      } else if (!path) {
-        continue;
-      }
-
-      resolvedPath = path + '/' + resolvedPath;
-      resolvedAbsolute = path.charAt(0) === '/';
-    } // At this point the path should be resolved to a full absolute path, but
-    // handle relative paths to be safe (might happen when process.cwd() fails)
-    // Normalize the path
-
-
-    resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function (p) {
-      return !!p;
-    }), !resolvedAbsolute).join('/');
-    return (resolvedAbsolute ? '/' : '') + resolvedPath || '.';
-  }
-  // posix version
-
-  function normalize(path) {
-    var isPathAbsolute = isAbsolute(path),
-        trailingSlash = substr(path, -1) === '/'; // Normalize the path
-
-    path = normalizeArray(filter(path.split('/'), function (p) {
-      return !!p;
-    }), !isPathAbsolute).join('/');
-
-    if (!path && !isPathAbsolute) {
-      path = '.';
-    }
-
-    if (path && trailingSlash) {
-      path += '/';
-    }
-
-    return (isPathAbsolute ? '/' : '') + path;
-  }
-
-  function isAbsolute(path) {
-    return path.charAt(0) === '/';
-  } // posix version
-
-  function join() {
-    var paths = Array.prototype.slice.call(arguments, 0);
-    return normalize(filter(paths, function (p, index) {
-      if (typeof p !== 'string') {
-        throw new TypeError('Arguments to path.join must be strings');
-      }
-
-      return p;
-    }).join('/'));
-  } // path.relative(from, to)
-  // posix version
-
-  function relative(from, to) {
-    from = resolve(from).substr(1);
-    to = resolve(to).substr(1);
-
-    function trim(arr) {
-      var start = 0;
-
-      for (; start < arr.length; start++) {
-        if (arr[start] !== '') break;
-      }
-
-      var end = arr.length - 1;
-
-      for (; end >= 0; end--) {
-        if (arr[end] !== '') break;
-      }
-
-      if (start > end) return [];
-      return arr.slice(start, end - start + 1);
-    }
-
-    var fromParts = trim(from.split('/'));
-    var toParts = trim(to.split('/'));
-    var length = Math.min(fromParts.length, toParts.length);
-    var samePartsLength = length;
-
-    for (var i = 0; i < length; i++) {
-      if (fromParts[i] !== toParts[i]) {
-        samePartsLength = i;
-        break;
-      }
-    }
-
-    var outputParts = [];
-
-    for (var i = samePartsLength; i < fromParts.length; i++) {
-      outputParts.push('..');
-    }
-
-    outputParts = outputParts.concat(toParts.slice(samePartsLength));
-    return outputParts.join('/');
-  }
-  var sep = '/';
-  var delimiter = ':';
-  function dirname(path) {
-    var result = splitPath(path),
-        root = result[0],
-        dir = result[1];
-
-    if (!root && !dir) {
-      // No dirname whatsoever
-      return '.';
-    }
-
-    if (dir) {
-      // It has a dirname, strip trailing slash
-      dir = dir.substr(0, dir.length - 1);
-    }
-
-    return root + dir;
-  }
-  function basename(path, ext) {
-    var f = splitPath(path)[2]; // TODO: make this comparison case-insensitive on windows?
-
-    if (ext && f.substr(-1 * ext.length) === ext) {
-      f = f.substr(0, f.length - ext.length);
-    }
-
-    return f;
-  }
-  function extname(path) {
-    return splitPath(path)[3];
-  }
-  var path = {
-    extname: extname,
-    basename: basename,
-    dirname: dirname,
-    sep: sep,
-    delimiter: delimiter,
-    relative: relative,
-    join: join,
-    isAbsolute: isAbsolute,
-    normalize: normalize,
-    resolve: resolve
-  };
-
-  function filter(xs, f) {
-    if (xs.filter) return xs.filter(f);
-    var res = [];
-
-    for (var i = 0; i < xs.length; i++) {
-      if (f(xs[i], i, xs)) res.push(xs[i]);
-    }
-
-    return res;
-  } // String.prototype.substr - negative index don't work in IE8
-
-
-  var substr = 'ab'.substr(-1) === 'b' ? function (str, start, len) {
-    return str.substr(start, len);
-  } : function (str, start, len) {
-    if (start < 0) start = str.length + start;
-    return str.substr(start, len);
-  };
-
   var listeners$2 = ['onabort', 'onclose', 'onerror', 'onversionchange'];
   var readonlyProperties$6 = ['name', 'version', 'objectStoreNames'];
   /**
@@ -10058,8 +9591,6 @@
     writable: false
   });
 
-  var fs = {}.toString.call(process) === '[object process]' ? require('fs') : null;
-
   var getOrigin = function getOrigin() {
     return (typeof location === "undefined" ? "undefined" : _typeof(location)) !== 'object' || !location ? 'null' : location.origin;
   };
@@ -10234,8 +9765,8 @@
       return;
     }
 
-    if (fs && CFG.deleteDatabaseFiles !== false) {
-      fs.unlink(path.join(CFG.databaseBasePath || '', escapedDatabaseName), function (err) {
+    if (CFG.fs && CFG.deleteDatabaseFiles !== false) {
+      CFG.fs.unlink(CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), function (err) {
         if (err && err.code !== 'ENOENT') {
           // Ignore if file is already deleted
           dbError({
@@ -10250,7 +9781,7 @@
       return;
     }
 
-    var sqliteDB = __openDatabase(path.join(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
+    var sqliteDB = __openDatabase(CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
 
     sqliteDB.transaction(function (tx) {
       tx.executeSql('SELECT "name" FROM __sys__', [], function (tx, data) {
@@ -10279,9 +9810,9 @@
     });
   }
   /**
-  * @callback CreateSysDBSuccessCallback
-  * @returns {void}
-  */
+   * @callback CreateSysDBSuccessCallback
+   * @returns {void}
+   */
 
   /**
    * Creates the sysDB to keep track of version numbers for databases.
@@ -10302,7 +9833,7 @@
     if (sysdb) {
       success();
     } else {
-      sysdb = __openDatabase(typeof CFG.memoryDatabase === 'string' ? CFG.memoryDatabase : path.join(typeof CFG.sysDatabaseBasePath === 'string' ? CFG.sysDatabaseBasePath : CFG.databaseBasePath || '', '__sysdb__' + (CFG.addSQLiteExtension !== false ? '.sqlite' : '')), 1, 'System Database', CFG.DEFAULT_DB_SIZE);
+      sysdb = __openDatabase(typeof CFG.memoryDatabase === 'string' ? CFG.memoryDatabase : CFG.pathJoin(typeof CFG.sysDatabaseBasePath === 'string' ? CFG.sysDatabaseBasePath : CFG.databaseBasePath || '', '__sysdb__' + (CFG.addSQLiteExtension !== false ? '.sqlite' : '')), 1, 'System Database', CFG.DEFAULT_DB_SIZE);
       sysdb.transaction(function (systx) {
         systx.executeSql('CREATE TABLE IF NOT EXISTS dbVersions (name BLOB, version INT);', [], function (systx) {
           if (!CFG.useSQLiteIndexes) {
@@ -10596,7 +10127,7 @@
       if ((useMemoryDatabase || useDatabaseCache) && name in websqlDBCache && websqlDBCache[name][version]) {
         db = websqlDBCache[name][version];
       } else {
-        db = me.__openDatabase(useMemoryDatabase ? CFG.memoryDatabase : path.join(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
+        db = me.__openDatabase(useMemoryDatabase ? CFG.memoryDatabase : CFG.pathJoin(CFG.databaseBasePath || '', escapedDatabaseName), 1, name, CFG.DEFAULT_DB_SIZE);
 
         if (useDatabaseCache) {
           if (!(name in websqlDBCache)) {
@@ -10836,10 +10367,10 @@
     return cmp(key1, key2);
   };
   /**
-  * May return outdated information if a database has since been deleted.
-  * @see https://github.com/w3c/IndexedDB/pull/240/files
-  * @returns {Promise<string[]>}
-  */
+   * May return outdated information if a database has since been deleted.
+   * @see https://github.com/w3c/IndexedDB/pull/240/files
+   * @returns {Promise<string[]>}
+   */
 
 
   IDBFactory.prototype.databases = function () {
@@ -10888,16 +10419,16 @@
     });
   };
   /**
-  * @todo forceClose: Test
-  * This is provided to facilitate unit-testing of the
-  *  closing of a database connection with a forced flag:
-  * <http://w3c.github.io/IndexedDB/#steps-for-closing-a-database-connection>
-  * @param {string} dbName
-  * @param {Integer} connIdx
-  * @param {string} msg
-  * @throws {TypeError}
-  * @returns {void}
-  */
+   * @todo forceClose: Test
+   * This is provided to facilitate unit-testing of the
+   *  closing of a database connection with a forced flag:
+   * <http://w3c.github.io/IndexedDB/#steps-for-closing-a-database-connection>
+   * @param {string} dbName
+   * @param {Integer} connIdx
+   * @param {string} msg
+   * @throws {TypeError}
+   * @returns {void}
+   */
 
 
   IDBFactory.prototype.__forceClose = function (dbName, connIdx, msg) {

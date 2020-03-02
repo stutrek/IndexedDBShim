@@ -1,8 +1,13 @@
+import path from 'path';
+import fs from 'fs';
 import customOpenDatabase from 'websql/custom/index.js';
 import SQLiteDatabase from 'websql/lib/sqlite/SQLiteDatabase.js';
 import CFG from './CFG.js';
 
-function wrappedSQLiteDatabase (name) {
+CFG.pathJoin = path.join;
+CFG.fs = fs;
+
+function wrappedSQLiteDatabase(name) {
     const db = new SQLiteDatabase(name);
     if (CFG.sqlBusyTimeout) {
         db._db.configure('busyTimeout', CFG.sqlBusyTimeout); // Default is 1000

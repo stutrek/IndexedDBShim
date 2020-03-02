@@ -118,14 +118,17 @@ const CFG = {};
     //   defaults to `true`
     'addSQLiteExtension',
     // Various types of in-memory databases that can auto-delete
-    ['memoryDatabase', (val) => {
-        if (!(/^(?::memory:|file::memory:(\?[^#]*)?(#.*)?)?$/u).test(val)) {
-            throw new TypeError(
-                '`memoryDatabase` must be the empty string, ":memory:", or a ' +
-                '"file::memory:[?queryString][#hash] URL".'
-            );
+    [
+        'memoryDatabase',
+        val => {
+            if (!/^(?::memory:|file::memory:(\?[^#]*)?(#.*)?)?$/u.test(val)) {
+                throw new TypeError(
+                    '`memoryDatabase` must be the empty string, ":memory:", or a ' +
+                        '"file::memory:[?queryString][#hash] URL".'
+                );
+            }
         }
-    }],
+    ],
 
     // NODE-SPECIFIC CONFIG
     // Boolean on whether to delete the database file itself after
@@ -133,21 +136,23 @@ const CFG = {};
     'deleteDatabaseFiles',
     'databaseBasePath',
     'sysDatabaseBasePath',
+    'pathJoin', // should be path.join
+    'fs', // should be the fs module
 
     // NODE-SPECIFIC WEBSQL CONFIG
     'sqlBusyTimeout', // Defaults to 1000
     'sqlTrace', // Callback not used by default
     'sqlProfile' // Callback not used by default
-].forEach((prop) => {
+].forEach(prop => {
     let validator;
     if (Array.isArray(prop)) {
         [prop, validator] = prop;
     }
     Object.defineProperty(CFG, prop, {
-        get () {
+        get() {
             return map[prop];
         },
-        set (val) {
+        set(val) {
             if (validator) {
                 validator(val);
             }
